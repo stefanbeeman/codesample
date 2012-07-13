@@ -1,0 +1,19 @@
+{
+    "name": "sbeeman-codesample",
+    "version": "0.1.0",
+    "author": "Stefan Beeman <stefan@eldritchmedia.com>",
+    "description": "A code sample written for potential employers.",
+    "scripts": {
+        "start": "coffee cs.coffee"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/stefanbeeman/codesample.git"
+    },
+    "dependencies": {
+        "coffee-script": "1.3.x",
+        "stylus": "0.28.x",
+        "zappajs": "0.3.x"
+    },
+    "lisence": "MIT"
+}
