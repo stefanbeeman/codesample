@@ -23,6 +23,13 @@ require('zappajs') 8080, ->
             margin: 0px
             font-size: 12px
             background: gray
+            cursor: default
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         
         div
             position: relative
@@ -75,6 +82,9 @@ require('zappajs') 8080, ->
             margin-left: 8px
             margin-right: 8px
         
+        .button
+            cursor: pointer
+            
         #input_text, #input_due
             margin-right: 24px
         
@@ -86,6 +96,11 @@ require('zappajs') 8080, ->
         
         #input_create
             width: 100px
+        
+        .input_complete
+            position: absolute
+            right: 16px
+            top: 4px
         
         .task
             height: 32px
@@ -114,13 +129,55 @@ require('zappajs') 8080, ->
         .soft
             color: grey
             font-style: italic
-            
-        #completed_empty, pending_empty
+        
+        .overdue, .completed
+            color: white
+        
+        .overdue .soft, .completed .soft
+            color: white !important
+        
+        .overdue
+            font-weight: bold
+            background: rgb(239,197,202)
+            background: -moz-linear-gradient(top, rgba(239,197,202,1) 0%, rgba(210,75,90,1) 50%, rgba(186,39,55,1) 51%, rgba(241,142,153,1) 100%)
+            background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(239,197,202,1)), color-stop(50%,rgba(210,75,90,1)), color-stop(51%,rgba(186,39,55,1)), color-stop(100%,rgba(241,142,153,1)))
+            background: -webkit-linear-gradient(top, rgba(239,197,202,1) 0%,rgba(210,75,90,1) 50%,rgba(186,39,55,1) 51%,rgba(241,142,153,1) 100%)
+            background: -o-linear-gradient(top, rgba(239,197,202,1) 0%,rgba(210,75,90,1) 50%,rgba(186,39,55,1) 51%,rgba(241,142,153,1) 100%)
+            background: -ms-linear-gradient(top, rgba(239,197,202,1) 0%,rgba(210,75,90,1) 50%,rgba(186,39,55,1) 51%,rgba(241,142,153,1) 100%)
+            background: linear-gradient(to bottom, rgba(239,197,202,1) 0%,rgba(210,75,90,1) 50%,rgba(186,39,55,1) 51%,rgba(241,142,153,1) 100%)
+                
+        .completed
+            background: rgb(191,210,85)
+            background: -moz-linear-gradient(top,  rgba(191,210,85,1) 0%, rgba(142,185,42,1) 50%, rgba(114,170,0,1) 51%, rgba(158,203,45,1) 100%)
+            background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(191,210,85,1)), color-stop(50%,rgba(142,185,42,1)), color-stop(51%,rgba(114,170,0,1)), color-stop(100%,rgba(158,203,45,1)))
+            background: -webkit-linear-gradient(top,  rgba(191,210,85,1) 0%,rgba(142,185,42,1) 50%,rgba(114,170,0,1) 51%,rgba(158,203,45,1) 100%)
+            background: -o-linear-gradient(top,  rgba(191,210,85,1) 0%,rgba(142,185,42,1) 50%,rgba(114,170,0,1) 51%,rgba(158,203,45,1) 100%)
+            background: -ms-linear-gradient(top,  rgba(191,210,85,1) 0%,rgba(142,185,42,1) 50%,rgba(114,170,0,1) 51%,rgba(158,203,45,1) 100%)
+            background: linear-gradient(to bottom,  rgba(191,210,85,1) 0%,rgba(142,185,42,1) 50%,rgba(114,170,0,1) 51%,rgba(158,203,45,1) 100%)
+
+        #completed_empty, #pending_empty
             margin-top: 8px
             margin-bottom: 8px
+            text-align: center
     '''
     
     @client '/todo.js': ->
+        jQuery.fn.insertTask = (task) ->
+            task = $(task)
+            console.log task
+            task_due = parseInt( task.attr('data-due') )
+            console.log 'Task: ' + task_due
+            placed = false
+            this.children().each (i, childNode) ->
+                child = $(childNode)
+                child_due = parseInt( child.attr('data-due') )
+                console.log 'Child #' + i + ': ' + child_due
+                if child_due > task_due and not placed
+                    child.before(task)
+                    placed = true
+            if not placed
+                this.append(task)
+
         jQuery(document).ready ($) ->
             $('#input_create').on 'click', ->
                 text = $('#input_text').val()
@@ -130,15 +187,33 @@ require('zappajs') 8080, ->
                 else if due is '' or isNaN( Date.parse(due) )
                     $('#input_due').focus()
                 else
+                    $('#input_due').val('')
+                    $('#input_text').val('')
                     $.post '/create',
                         text: text
                         due: new Date(due)
-                    , (response) ->
-                        if response.error?
-                            alert response.error
+                    , (res) ->
+                        if res is 'error'
+                            alert 'Something went wrong creating your task. Tell me about it on GitHub.'
                         else
-                            alert response.text
-    
+                            $('#pending_empty').hide()
+                            $('#pending_content').insertTask(res)
+            
+            $('#pending_content').on 'click', '.input_complete', ->
+                task = $(this).parent().attr('id')
+                $.post '/complete',
+                    task: task
+                , (res) ->
+                    if res is 'error'
+                        alert 'Something went wrong completing your task. Tell me about it on GitHub.'
+                    else
+                        completed = $('#' + res).removeClass('overdue').addClass('completed').detach()
+                        if $('#pending_content').children('.task').length < 1
+                            $('#pending_empty').show()
+                        completed.children('input').remove()
+                        $('#completed_empty').hide()
+                        $('#completed_content').insertTask(completed)
+                
     @view 'main': ->
         @title = 'Todo List App'
         @stylesheet = '/todo'
@@ -146,9 +221,17 @@ require('zappajs') 8080, ->
         
         render_tasks = (tasks) ->
             for task in tasks
-                div class: 'task', ->
+                if task.completed
+                    classes = 'task completed'
+                else if task.due < Date.now()
+                    classes = 'task overdue'
+                else
+                    classes = 'task'
+                div id: String(task.id), class: classes, 'data-due': String( task.due.valueOf() ),  ->
                     span class: 'task_text', -> task.text
                     span class: 'task_text soft', -> 'by ' + task.due.toDateString()
+                    if not task.completed
+                        input type: 'button', class: 'button input_complete', value: 'Complete'
         
         div id: 'create', class: 'section', ->
             div class: 'section_label', -> 'Create a new task'
@@ -163,6 +246,7 @@ require('zappajs') 8080, ->
             div id: 'pending_content', class: 'section_content', ->
                 if tasks.pending? and tasks.pending.length > 0
                     render_tasks(tasks.pending)
+                    div id: 'pending_empty', class: 'soft', style: 'display: none;', -> 'You have no pending tasks'
                 else
                     div id: 'pending_empty', class: 'soft', -> 'You have no pending tasks'
         div id: 'completed', class: 'section', ->
@@ -170,9 +254,23 @@ require('zappajs') 8080, ->
             div id: 'completed_content', class: 'section_content', ->
                 if tasks.completed? and tasks.completed.length > 0
                     render_tasks(tasks.completed)
+                    div id: 'completed_empty', class: 'soft', style: 'display: none;', -> 'You have no completed tasks'
                 else
                     div id: 'completed_empty', class: 'soft', -> 'You have no completed tasks'
-                
+    
+    @view 'new': ->
+        if task.completed
+            classes = 'task completed'
+        else if task.due < Date.now()
+            classes = 'task overdue'
+        else
+            classes = 'task'
+        div id: String(task.id), class: classes, 'data-due': String( task.due.valueOf() ),  ->
+            span class: 'task_text', -> task.text
+            span class: 'task_text soft', -> 'by ' + task.due.toDateString()
+            if not task.completed
+                input type: 'button', class: 'input_complete', value: 'Complete'
+        
     @get '/': ->
         async.parallel(
             pending: (callback) ->
@@ -192,29 +290,34 @@ require('zappajs') 8080, ->
             task = new Task(
                 text: @body.text
                 due: @body.due
-            ).save()
-            @send task
+            )
+            task.save()
+            @render new: {locals: {task: task}, layout: false}
     
     @post '/complete': ->
         if not @body or not @body.task
-            @send {error: 'bad input'}
+            @send 'error'
         else
-            Task.findById @body.task, (error, task) ->
+            Task.findById @body.task, (error, task) =>
                 if error? or not task?
-                    @send {error: 'no such task'}
+                    @send 'error'
                 else
                     task.completed = true
                     task.save()
-                    @send task
+                    @send String(task.id)
     
     @post '/delete': ->
         if not @body or not @body.task
-            @send {error: 'bad input'}
+            @send 'error'
         else
-            Task.findById @body.task, (error, task) ->
+            Task.findById @body.task, (error, task) =>
                 if error? or not task?
-                    @send {error: 'no such task'}
+                    @send 'error'
                 else
                     task.completed = true
                     task.remove()
-                    @send task
+                    @send String(task.id)
+
+    @get '/flush': ->
+        Task.find().remove()
+        @send 'done'
