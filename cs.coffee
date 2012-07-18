@@ -16,7 +16,7 @@ require('zappajs') 8080, ->
     Task = mongoose.model('Task')
     
     @enable 'default layout'
-    @use 'bodyParser'
+    @use 'static', 'bodyParser'
     
     @stylus '/todo.css': '''
         body
@@ -164,14 +164,11 @@ require('zappajs') 8080, ->
     @client '/todo.js': ->
         jQuery.fn.insertTask = (task) ->
             task = $(task)
-            console.log task
             task_due = parseInt( task.attr('data-due') )
-            console.log 'Task: ' + task_due
             placed = false
             this.children().each (i, childNode) ->
                 child = $(childNode)
                 child_due = parseInt( child.attr('data-due') )
-                console.log 'Child #' + i + ': ' + child_due
                 if child_due > task_due and not placed
                     child.before(task)
                     placed = true
@@ -183,15 +180,17 @@ require('zappajs') 8080, ->
                 text = $('#input_text').val()
                 due = $('#input_due').val()
                 if text is ''
+                    alert 'Please describe your task.'
                     $('#input_text').focus()
                 else if due is '' or isNaN( Date.parse(due) )
+                    alert 'Please add a date.'
                     $('#input_due').focus()
                 else
                     $('#input_due').val('')
                     $('#input_text').val('')
                     $.post '/create',
                         text: text
-                        due: new Date(due)
+                        due: due
                     , (res) ->
                         if res is 'error'
                             alert 'Something went wrong creating your task. Tell me about it on GitHub.'
@@ -213,11 +212,13 @@ require('zappajs') 8080, ->
                         completed.children('input').remove()
                         $('#completed_empty').hide()
                         $('#completed_content').insertTask(completed)
+            
+            $('#input_due').dateinput()
                 
     @view 'main': ->
         @title = 'Todo List App'
-        @stylesheet = '/todo'
-        @scripts = ['/zappa/zappa', 'https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min', '/todo']
+        @stylesheets = ['css/calendar', '/todo']
+        @scripts = ['/zappa/zappa', 'https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min', 'http://cdn.jquerytools.org/1.2.7/full/jquery.tools.min', '/todo']
         
         render_tasks = (tasks) ->
             for task in tasks
@@ -239,7 +240,7 @@ require('zappajs') 8080, ->
                 span class: 'input_label', -> 'Task:'
                 input type: 'text', id: 'input_text', class: 'field'
                 span class: 'input_label', -> 'Due Date:'
-                input type: 'date', id: 'input_due', class: 'field'
+                input type: 'text', id: 'input_due', class: 'field'
                 input type: 'button', id: 'input_create', value: 'Create', class: 'button'
         div id: 'pending', class: 'section', ->
             div class: 'section_label', -> 'Pending Tasks'
@@ -285,11 +286,11 @@ require('zappajs') 8080, ->
 
     @post '/create': ->
         if not @body? or not @body.text? or not @body.due? or isNaN( Date.parse(@body.due) )
-            @send {error: 'bad input'}
+            @send 'error'
         else
             task = new Task(
                 text: @body.text
-                due: @body.due
+                due: new Date(@body.due)
             )
             task.save()
             @render new: {locals: {task: task}, layout: false}
